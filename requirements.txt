@@ -1,0 +1,10 @@
+tensorflow
+numpy
+pillow
+flask
+flask-cors
+werkzeug
+pymongo
+python-dotenv
+opencv-python
+scipy
