@@ -12,6 +12,7 @@ from PIL import Image
 import io
 import json
 from bson import ObjectId
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -39,6 +40,8 @@ class JSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, ObjectId):
             return str(o)
+        if isinstance(o, datetime):
+            return o.isoformat()
         return super().default(o)
 
 # Image Preprocessing
