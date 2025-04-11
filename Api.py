@@ -93,6 +93,11 @@ def update_property_features():
             {"$set": {"features": features_list}}
         )
     print("Feature extraction and storage completed.")
+    
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"message": "API is running"}), 200
+
 
 # AI-Based Image Search Endpoint
 @app.route('/predict', methods=['POST'])
