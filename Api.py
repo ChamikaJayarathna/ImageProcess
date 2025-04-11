@@ -142,5 +142,6 @@ def ai_search():
 if __name__ == '__main__':
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
-    update_property_features()
-    app.run(debug=True)
+    if os.getenv("WERKZEUG_RUN_MAIN") == "true":
+        update_property_features()
+    app.run()
