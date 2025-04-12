@@ -144,4 +144,4 @@ if __name__ == '__main__':
         os.makedirs("uploads")
     if os.getenv("WERKZEUG_RUN_MAIN") == "true":
         update_property_features()
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
