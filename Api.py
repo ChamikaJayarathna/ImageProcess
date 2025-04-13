@@ -5,6 +5,7 @@ import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 from pymongo import MongoClient
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import requests
 from PIL import Image
@@ -75,7 +76,7 @@ def serialize_document(doc):
 # Precompute and Store Features in MongoDB
 def update_property_features():
     all_properties = list(rental_collection.find({"images": {"$exists": True, "$ne": []}}))
-
+    
     for prop in all_properties:
         property_id = prop["_id"]
         print("Processing Property ID:", property_id)
@@ -91,57 +92,56 @@ def update_property_features():
             {"_id": property_id},
             {"$set": {"features": features_list}}
         )
-    print("✅ Feature extraction and storage completed.")
-
+    print("Feature extraction and storage completed.")
+    
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({"message": "API is running"}), 200
+
 
 # AI-Based Image Search Endpoint
 @app.route('/predict', methods=['POST'])
 def ai_search():
     if 'file' not in request.files:
-        app.logger.error("No file part in request")
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
     if file.filename == '':
-        app.logger.error("No file selected")
         return jsonify({"error": "No file selected"}), 400
 
-    try:
-        # Log the upload attempt
-        app.logger.info(f"Attempting to process uploaded file: {file.filename}")
-        
-        # Process image in memory
-        image = Image.open(file.stream).convert("RGB")
-        img_array = preprocess_image(image)
-        uploaded_features = extract_features(img_array)
+    # Save and preprocess uploaded image
+    filename = secure_filename(file.filename)
+    file_path = os.path.join("uploads", filename)
+    file.save(file_path)
 
-        all_properties = rental_collection.find({"features": {"$exists": True, "$ne": []}})
-        matched_properties = []
+    image = Image.open(file_path).convert("RGB")
+    img_array = preprocess_image(image)
+    uploaded_features = extract_features(img_array)
 
-        for prop in all_properties:
-            for stored_features in prop.get("features", []):
-                stored_features = np.array(stored_features)
-                similarity = np.dot(uploaded_features, stored_features) / (
-                    np.linalg.norm(uploaded_features) * np.linalg.norm(stored_features)
-                )
-
-                if similarity > 0.5:
-                    matched_properties.append(serialize_document(prop))
-                    break
-
-        app.logger.info(f"Found {len(matched_properties)} matching properties")
-        return json.dumps({"matched_properties": matched_properties}, cls=JSONEncoder), 200, {
-            'Content-Type': 'application/json'
-        }
-    except Exception as e:
-        app.logger.error(f"Error processing image: {str(e)}", exc_info=True)
-        return jsonify({"error": f"Failed to process image: {e}"}), 500
+    # Fetch stored property features
+    all_properties = rental_collection.find({"features": {"$exists": True, "$ne": []}})
     
+    matched_properties = []
+    for prop in all_properties:
+        for stored_features in prop.get("features", []):
+            stored_features = np.array(stored_features)
+            
+            # Compute Cosine Similarity
+            similarity = np.dot(uploaded_features, stored_features) / (
+                np.linalg.norm(uploaded_features) * np.linalg.norm(stored_features)
+            )
+
+            if similarity > 0.5:
+                matched_properties.append(serialize_document(prop))
+                break 
+
+    os.remove(file_path)
+    return json.dumps({"matched_properties": matched_properties}, cls=JSONEncoder), 200, {'Content-Type': 'application/json'}
+
 # Run Server
 if __name__ == '__main__':
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
     if os.getenv("WERKZEUG_RUN_MAIN") == "true":
         update_property_features()
     app.run()
