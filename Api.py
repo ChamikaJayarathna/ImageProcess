@@ -101,14 +101,19 @@ def home():
 @app.route('/predict', methods=['POST'])
 def ai_search():
     if 'file' not in request.files:
+        app.logger.error("No file part in request")
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
     if file.filename == '':
+        app.logger.error("No file selected")
         return jsonify({"error": "No file selected"}), 400
 
     try:
-        # Process image in memory instead of saving to disk
+        # Log the upload attempt
+        app.logger.info(f"Attempting to process uploaded file: {file.filename}")
+        
+        # Process image in memory
         image = Image.open(file.stream).convert("RGB")
         img_array = preprocess_image(image)
         uploaded_features = extract_features(img_array)
@@ -127,12 +132,14 @@ def ai_search():
                     matched_properties.append(serialize_document(prop))
                     break
 
+        app.logger.info(f"Found {len(matched_properties)} matching properties")
         return json.dumps({"matched_properties": matched_properties}, cls=JSONEncoder), 200, {
             'Content-Type': 'application/json'
         }
     except Exception as e:
+        app.logger.error(f"Error processing image: {str(e)}", exc_info=True)
         return jsonify({"error": f"Failed to process image: {e}"}), 500
-
+    
 # Run Server
 if __name__ == '__main__':
     if os.getenv("WERKZEUG_RUN_MAIN") == "true":
